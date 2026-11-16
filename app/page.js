@@ -1,9 +1,51 @@
 'use client';
 import { useRef, useState } from 'react';
 
+function cartoonize(img) {
+  const s = Math.min(720 / img.width, 1280 / img.height, 1);
+  const w = Math.round(img.width * s);
+  const h = Math.round(img.height * s);
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.filter = 'blur(2px) saturate(1.6) contrast(1.1)';
+  x.drawImage(img, 0, 0, w, h);
+  x.filter = 'none';
+  const id = x.getImageData(0, 0, w, h);
+  const d = id.data;
+  const g = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    g[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+  }
+  const step = 255 / 5;
+  for (let y = 0; y < h; y++) {
+    for (let px = 0; px < w; px++) {
+      const i = y * w + px;
+      let edge = false;
+      if (y > 0 && y < h - 1 && px > 0 && px < w - 1) {
+        const gx = -g[i - w - 1] - 2 * g[i - 1] - g[i + w - 1] + g[i - w + 1] + 2 * g[i + 1] + g[i + w + 1];
+        const gy = -g[i - w - 1] - 2 * g[i - w] - g[i - w + 1] + g[i + w - 1] + 2 * g[i + w] + g[i + w + 1];
+        edge = Math.abs(gx) + Math.abs(gy) > 140;
+      }
+      const o = i * 4;
+      if (edge) {
+        d[o] = 20; d[o + 1] = 20; d[o + 2] = 20;
+      } else {
+        d[o] = Math.round(d[o] / step) * step;
+        d[o + 1] = Math.round(d[o + 1] / step) * step;
+        d[o + 2] = Math.round(d[o + 2] / step) * step;
+      }
+    }
+  }
+  x.putImageData(id, 0, 0);
+  return c;
+}
+
 export default function Home() {
   const [files, setFiles] = useState([]);
   const [secs, setSecs] = useState(2);
+  const [cartoon, setCartoon] = useState(true);
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const canvasRef = useRef(null);
@@ -19,7 +61,15 @@ export default function Home() {
     if (!files.length) return;
     setBusy(true);
     setUrl('');
-    const imgs = await Promise.all(files.map(load));
+    let imgs = await Promise.all(files.map(load));
+    if (cartoon) {
+      const out = [];
+      for (const im of imgs) {
+        out.push(cartoonize(im));
+        await wait(10);
+      }
+      imgs = out;
+    }
     const c = canvasRef.current;
     const ctx = c.getContext('2d');
     const rec = new MediaRecorder(c.captureStream(30));
@@ -56,6 +106,13 @@ export default function Home() {
         <input type="number" min="1" max="10" value={secs}
           onChange={(e) => setSecs(Number(e.target.value) || 2)}
           style={{ width: 60 }} />
+      </p>
+      <p>
+        <label>
+          <input type="checkbox" checked={cartoon}
+            onChange={(e) => setCartoon(e.target.checked)} />{' '}
+          Cartoon style
+        </label>
       </p>
       <button onClick={make} disabled={busy || !files.length}
         style={{ padding: '10px 20px', fontSize: 16 }}>
