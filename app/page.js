@@ -1,7 +1,7 @@
 'use client';
 import { useRef, useState } from 'react';
 
-function cartoonize(img) {
+function cartoonize(img, thr) {
   const s = Math.min(720 / img.width, 1280 / img.height, 1);
   const w = Math.round(img.width * s);
   const h = Math.round(img.height * s);
@@ -26,7 +26,7 @@ function cartoonize(img) {
       if (y > 0 && y < h - 1 && px > 0 && px < w - 1) {
         const gx = -g[i - w - 1] - 2 * g[i - 1] - g[i + w - 1] + g[i - w + 1] + 2 * g[i + 1] + g[i + w + 1];
         const gy = -g[i - w - 1] - 2 * g[i - w] - g[i - w + 1] + g[i + w - 1] + 2 * g[i + w] + g[i + w + 1];
-        edge = Math.abs(gx) + Math.abs(gy) > 140;
+        edge = Math.abs(gx) + Math.abs(gy) > thr;
       }
       const o = i * 4;
       if (edge) {
@@ -46,6 +46,7 @@ export default function Home() {
   const [files, setFiles] = useState([]);
   const [secs, setSecs] = useState(2);
   const [cartoon, setCartoon] = useState(true);
+  const [lines, setLines] = useState(3);
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const canvasRef = useRef(null);
@@ -65,7 +66,7 @@ export default function Home() {
     if (cartoon) {
       const out = [];
       for (const im of imgs) {
-        out.push(cartoonize(im));
+        out.push(cartoonize(im, 260 - lines * 40));
         await wait(10);
       }
       imgs = out;
@@ -113,6 +114,12 @@ export default function Home() {
             onChange={(e) => setCartoon(e.target.checked)} />{' '}
           Cartoon style
         </label>
+      </p>
+      <p>
+        Cartoon lines:{' '}
+        <input type="range" min="1" max="5" value={lines}
+          onChange={(e) => setLines(Number(e.target.value))} />
+        {' '}{lines}
       </p>
       <button onClick={make} disabled={busy || !files.length}
         style={{ padding: '10px 20px', fontSize: 16 }}>
